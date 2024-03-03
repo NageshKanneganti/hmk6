@@ -1,0 +1,13 @@
+[run]
+omit =
+    */site-packages/*
+    */dist-packages/*
+    */lib/python*
+    */python*/*
+    */tests/conftest.py
+    */main.py
+
+[report]
+exclude_lines =
+    pragma: no cover
+    if __name__ == "__main__":
