@@ -1,5 +1,6 @@
 '''utils/validation.py: validate user input'''
 from decimal import Decimal, InvalidOperation
+import logging
 
 def validate_decimal_input(prompt):
     '''
@@ -14,10 +15,13 @@ def validate_decimal_input(prompt):
     Returns:
         Decimal: The validated Decimal value entered by the user.
     '''
+    logging.info("User validation in progress.")
     while True:
         num_str = input(prompt)
         try:
             num = Decimal(num_str)  # Attempt to convert to Decimal
+            logging.info("User entered VALID input.")
             return num
         except InvalidOperation:
+            logging.info("User entered INVALID input")
             print("Invalid input. Please enter a valid number.")
