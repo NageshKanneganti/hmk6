@@ -1,6 +1,6 @@
 '''app/plugins/menu/__init__.py'''
-import sys
 from app.commands import Command
+import logging
 
 class MenuCommand(Command):
     '''
@@ -25,6 +25,7 @@ class MenuCommand(Command):
 
         This method generates and displays the menu of available commands.
         '''
+        logging.info("Command 'menu' from plugin 'menu' selected.")
         print("Available Commands:")
         for command_name in self.command_handler.commands:
             print("\t-", command_name)
