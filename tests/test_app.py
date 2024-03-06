@@ -1,87 +1,185 @@
-'''Test for app/__init__.py'''
+'''Test file for app/__init__.py'''
 import logging
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 import pytest
-from app import App
+from app import App, MenuCommand
 
-def test_app_start_exit_command(capfd, monkeypatch):
-    '''Test that the REPL exits correctly on 'exit' command.'''
-    # Simulate user entering 'exit'
-    monkeypatch.setattr('builtins.input', lambda _: 'exit')
-    app = App()
-    with pytest.raises(SystemExit) as e:
-        app.start()
-    assert e.type == SystemExit
+@pytest.fixture
+def app_instance():
+    '''Create an instance of the app'''
+    return App()
 
-def test_app_start_unknown_command(capfd, monkeypatch):
-    '''Test how the REPL handles an unknown command before exiting.'''
-    # Simulate user entering an unknown command followed by 'exit'
-    inputs = iter(['unknown_command', 'exit'])
-    monkeypatch.setattr('builtins.input', lambda _: next(inputs))
 
-    app = App()
+# Tests for configure_logging
+def test_configure_logging_with_logging_conf(app_instance): # This test does not contribute to coverage
+    '''Tests configure_logging with logging configuration file.'''
+    # Patch os.path.exists to return True and mock fileConfig
+    with patch('os.path.exists', return_value=True), \
+        patch('logging.config.fileConfig') as mock_file_config:
 
-    with pytest.raises(SystemExit) as e: # pylint: disable=unused-variable
-        app.start()
+        # Call configure_logging method which should trigger fileConfig
+        app_instance.configure_logging()
 
-    # Check for specific exit code or message
-    assert e.value.code == "Thank you for using my calculator app. Exiting..."
+        # Assert that fileConfig is called once with the correct arguments
+        mock_file_config.assert_called_once_with('logging.conf', disable_existing_loggers=False)
 
-    # Verify that the unknown command was handled as expected
-    captured = capfd.readouterr()
-    assert "No such command: unknown_command" in captured.out
+def test_configure_logging_without_logging_conf(app_instance, caplog):
+    '''Test configure_logging when logging.conf file doesn't exist'''
+    # Mock the absence of the logging.conf file
+    with patch('os.path.exists', return_value=False):
+        # Call the configure_logging method
+        app_instance.configure_logging()
 
-# Tests for Environment Variables
-def test_get_environment_variable():
-    '''Test the getEnvironmentVariable function.'''
-    # Create an instance of the App class
-    app = App()
+    # Check if the logging configuration is set to INFO level and if the message is logged
+    assert logging.getLogger().getEffectiveLevel() == logging.INFO, \
+       "Logging level is not set to INFO when logging.conf is missing"
+    assert "Logging configured." in caplog.text, "Expected message 'Logging configured.' in log output"
 
-    # Define environment variables for testing
-    test_environment = {
-        'ENVIRONMENT': 'TESTING',
-        'API_KEY': '123456789'
-    }
 
-    # Update the settings dictionary with test environment variables
-    app.settings.update(test_environment)
 
-    # Test retrieving existing environment variable
-    assert app.get_environment_variable('ENVIRONMENT') == 'TESTING'
+# Tests for get_environment_variables
+@pytest.mark.parametrize("env_var, expected_result", [
+    ('ENVIRONMENT', 'TEST'),
+    ('ANOTHER_ENV', 'DEFAULT')
+])
+def test_get_environment_variable(app_instance, env_var, expected_result):
+    '''Test getting environment variables'''
+    app_instance.settings = {'ENVIRONMENT': 'TEST'}
+    result = app_instance.get_environment_variable(env_var, 'DEFAULT')
+    assert result == expected_result, f"Expected result '{expected_result}' but got '{result}'"
 
-    # Test retrieving non-existing environment variable with default value
-    assert app.get_environment_variable('NON_EXISTING_KEY', 'DEFAULT_VALUE') == 'DEFAULT_VALUE'
 
-# Test for logging
-class TestLogging:
-    '''Test logging'''
-    def test_configure_logging_with_existing_config_file(self, tmp_path):
-        '''Test the configure_logging method with an existing logging configuration file.'''
-        # Create a temporary logging configuration file
-        logging_conf_path = tmp_path / 'logging.conf'
-        with open(logging_conf_path, 'w', encoding='utf-8') as f:
-            f.write('[loggers]\nkeys=root\n\n[handlers]\nkeys=fileHandler,consoleHandler\n\n[formatters]\nkeys=simpleFormatter\n\n[logger_root]\nlevel=INFO\nhandlers=fileHandler,consoleHandler\n\n[handler_fileHandler]\nclass=handlers.RotatingFileHandler\nlevel=INFO\nformatter=simpleFormatter\nargs=(\'logs/app.log\', \'a\', 1048576, 5)\n\n[handler_consoleHandler]\nclass=StreamHandler\nlevel=INFO\nformatter=simpleFormatter\nargs=(sys.stderr,)\n\n[formatter_simpleFormatter]\nformat=%(asctime)s - %(name)s - %(levelname)s - %(message)s\ndatefmt=%Y-%m-%d %H:%M:%S\n')
 
-        # Create an instance of the App class
-        app = App()
+# Tests for load_plugins method
+@pytest.mark.parametrize("plugin_modules, expected_commands", [
+    ([('add', 'add', True), ('subtract', 'subtract', True)], ['add', 'subtract']),
+    ([], [])  # No plugin modules
+])
+def test_load_plugins_with_existing_plugins(app_instance, plugin_modules, expected_commands):
+    '''Mock the plugin directory structure to simulate the presence of existing plugins'''
+    with patch('os.path.exists', return_value=True):
+        # Simulate the presence of existing plugin modules by providing their names
+        with patch('pkgutil.iter_modules') as mock_iter_modules:
+            mock_iter_modules.return_value = plugin_modules
 
-        # Patch os.path.exists to return True for the temporary logging configuration file
-        with patch('os.path.exists', return_value=True):
-            app.configure_logging()
+            # Call the load_plugins method to load the existing plugins
+            app_instance.load_plugins()
 
-        # Check if logging is configured properly
-        assert logging.getLogger().level == logging.INFO
-        assert logging.getLogger().handlers
+    # Assert that commands from the existing plugins are registered
+    assert len(app_instance.command_handler.commands) == len(expected_commands), \
+       f"Expected {len(expected_commands)} commands but found {len(app_instance.command_handler.commands)}"
+    for command in expected_commands:
+        assert command in app_instance.command_handler.commands, \
+           f"Expected command '{command}' to be registered but it was not found."
 
-    def test_configure_logging_without_config_file(self):
-        '''Test the configure_logging method without a logging configuration file.'''
-        # Create an instance of the App class
-        app = App()
+def test_load_plugins_without_plugins_directory(app_instance, caplog):
+    '''Test loading plugins when the plugins directory does not exist'''
+    # Mock the absence of the plugins directory
+    with patch('os.path.exists', return_value=False):
+        # Call the load_plugins method
+        app_instance.load_plugins()
 
-        # Patch os.path.exists to return False for the logging configuration file
-        with patch('os.path.exists', return_value=False):
-            app.configure_logging()
+    # Check if a warning message is logged
+    assert "Plugins directory 'app/plugins' not found." in caplog.text, \
+       "Expected warning message about missing plugins directory."
 
-        # Check if logging is configured properly
-        assert logging.getLogger().level == logging.INFO
-        assert logging.getLogger().handlers
+def test_load_plugins_with_import_error(app_instance, caplog):
+    '''Test loading plugins when there is an ImportError'''
+    # Mock the existence of the plugins directory
+    with patch('os.path.exists', return_value=True):
+        # Simulate an ImportError when importing a plugin module
+        with patch('app.importlib.import_module') as mock_import_module:
+            mock_import_module.side_effect = ImportError('Simulated ImportError')
+
+            # Call the load_plugins method
+            app_instance.load_plugins()
+
+    # Check if an error message is logged
+    assert "Error importing plugin" in caplog.text, "Expected 'Error importing plugin' message in logs"
+
+def test_load_plugins_with_other_exception(app_instance, caplog):
+    '''Test loading plugins when there is an exception other than ImportError'''
+    # Mock the existence of the plugins directory
+    with patch('os.path.exists', return_value=True):
+        # Simulate an exception other than ImportError when importing a plugin module
+        with patch('app.importlib.import_module') as mock_import_module:
+            mock_import_module.side_effect = Exception('Simulated Exception')
+
+            # Call the load_plugins method
+            app_instance.load_plugins()
+
+    # Check if an error message is logged
+    assert "Error loading plugin" in caplog.text, "Expected 'Error loading plugin' message in logs"
+
+
+
+# Tests for register_plugin commands method
+def test_register_menu_command(app_instance): # This test does not contribute to coverage
+    '''Test the registration of the MenuCommand'''
+    # Mock a plugin module with a MenuCommand
+    with patch('app.importlib.import_module') as mock_import_module:
+        # Define a mock plugin module
+        mock_plugin_module = type('MockPluginModule', (object,), {'MenuCommand': MenuCommand})
+        # Configure the import_module to return the mock plugin module
+        mock_import_module.return_value = mock_plugin_module
+
+        # Call the register_plugin_commands method with the mock plugin module
+        app_instance.register_plugin_commands(mock_plugin_module, 'menu')
+
+    # Assert that the MenuCommand is registered
+    assert 'menu' in app_instance.command_handler.commands, "Menu command not registered"
+    assert isinstance(app_instance.command_handler.commands['menu'], MenuCommand), \
+       "Registered command is not an instance of MenuCommand"
+
+
+
+# Tests for start method
+def test_start_application(app_instance, capsys):
+    '''Test the behavior of starting the application'''
+    # Simulate starting the application
+    with patch('builtins.input', side_effect=['exit']):
+        with pytest.raises(SystemExit) as ex:  # Expect SystemExit to be raised
+            app_instance.start()
+
+    # Assert the exit code
+    assert ex.value.code == 0, f"Expected exit code 0 but got {ex.value.code}"
+
+def test_user_input_known_command_with_arguments(app_instance, capsys):
+    '''Simulate user input for a command with arguments'''
+    with patch('builtins.input', side_effect=['add', '5', '10', 'exit']):
+        # Catch the SystemExit exception
+        with pytest.raises(SystemExit) as ex:
+            app_instance.start()
+
+        # Assert the exit code
+        assert ex.value.code == 0, f"Expected exit code 0 but got {ex.value.code}"
+
+    # Capture the output and assert the expected result
+    captured = capsys.readouterr()
+    assert "The result of 5 + 10 is: 15" in captured.out, \
+       "Incorrect output message after adding two numbers"
+
+def test_keyboard_interrupt_graceful_shutdown(app_instance, caplog):
+    '''Test graceful shutdown on keyboard interrupt'''
+    with patch('builtins.input', side_effect=KeyboardInterrupt), \
+         pytest.raises(SystemExit) as ex:
+        app_instance.start()
+
+    assert ex.value.code == 0, "Expected exit code 0 for graceful shutdown"
+    assert "Application interrupted and exiting gracefully." in caplog.text, "Expected log message for keyboard interrupt"
+    assert "Application shutdown." in caplog.text, "Expected log message for application shutdown"
+
+def test_start_unknown_command(app_instance, caplog):
+    '''Test behavior when an unknown command is entered'''
+    # Mocking command_handler to raise KeyError
+    app_instance.command_handler.execute_command = MagicMock(side_effect=KeyError)
+
+    # Simulate user input of an unknown command
+    with patch('builtins.input', side_effect=['unknown_command', 'exit']):
+        # Catch the SystemExit exception
+        with pytest.raises(SystemExit) as ex: # pylint: disable=unused-variable
+            app_instance.start()
+
+    # Check if the KeyError is logged
+    assert "Unknown command: unknown_command" in caplog.text, \
+        "Expected log message for unknown command"
