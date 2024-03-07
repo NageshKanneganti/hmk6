@@ -23,7 +23,7 @@ class CalculationHistory():
         return cls.history.clear()
     
     @classmethod
-    def get_lastest_history(cls):
+    def get_latest_history(cls):
         '''Retrieves the most recent calculation & returns None if there are no calculations in history'''
         if cls.history:
             return cls.history[-1]
