@@ -1,3 +1,4 @@
+'''app/plugins/history/__init__.py'''
 from app.commands import Command
 from app.calculator.calc_history import CalculationHistory
 import logging
