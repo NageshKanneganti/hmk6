@@ -24,8 +24,4 @@ class CommandHandler:
         try:
             self.commands[command_name].execute()
         except KeyError:
-            # error_message = f"Unknown command: {command_name}"
-            # logging.error(error_message)  # Log the error message
-            # print(error_message)  # Print the error message
-            # error_message = f"Unknown command: {command_name}"
             raise KeyError(f"Unknown command: {command_name}")

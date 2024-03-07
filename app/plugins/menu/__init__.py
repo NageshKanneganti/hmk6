@@ -25,7 +25,7 @@ class MenuCommand(Command):
 
         This method generates and displays the menu of available commands.
         '''
-        logging.info("Command 'menu' from plugin 'menu' selected.")
+        logging.info("Command 'menu' from plugin 'menu' selected.\n")
         print("Available Commands:")
         for command_name in self.command_handler.commands:
             print("\t-", command_name)

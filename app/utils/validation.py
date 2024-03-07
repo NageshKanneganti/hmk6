@@ -20,8 +20,8 @@ def validate_decimal_input(prompt):
         num_str = input(prompt)
         try:
             num = Decimal(num_str)  # Attempt to convert to Decimal
-            logging.info("User entered VALID input.")
+            logging.info("VALID input.")
             return num
         except InvalidOperation:
-            logging.info("User entered INVALID input")
+            logging.info("INVALID input.")
             print("Invalid input. Please enter a valid number.")

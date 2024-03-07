@@ -66,12 +66,13 @@ class App:
                 else:
                     # Register MenuCommand specifically for "menu" plugin
                     self.command_handler.register_command(plugin_name, MenuCommand(self.command_handler))
-                    logging.info(f"MenuCommand from plugin '{plugin_name}' registered.")
+                    logging.info(f"Command 'MenuCommand' from plugin '{plugin_name}' registered.")
 
     def start(self):
         '''Register commands from plugin module'''
         self.load_plugins()
-        logging.info("Application started. Type 'menu' to see available commands. Type 'exit' to quit application.")
+        logging.info("Application started.\n")
+        print("Welcome to my basic calculator program.\n\tType 'menu' to see available commands. Type 'exit' to quit application.")
         try:
             while True:  #REPL Read, Evaluate, Print, Loop
                 cmd_input = input(">>> ").strip()
@@ -83,7 +84,6 @@ class App:
                 except KeyError: # Assuming execute_command raises KeyError for unknown commands
                     logging.error(f"Unknown command: {cmd_input}")
                     continue  # Continue prompting for input
-                    # sys.exit(1) # Use a non-zero exit code to indicate failure or incorrect command.
         except KeyboardInterrupt:
             logging.info("Application interrupted and exiting gracefully.")
             sys.exit(0) # Assuming a KeyboardInterrupt should also result in a clean exit.
