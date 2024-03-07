@@ -109,6 +109,7 @@ class TestHistoryCommandExecute(unittest.TestCase):
             # Check the output
             expected_output = f"{mock_calculation} is undefined."
             self.assertIn(expected_output, mock_stdout.getvalue().strip())
+
     @patch('app.calculator.calc_history.CalculationHistory.get_history')
     def test_execute_handles_compute_exception(self, mock_get_history):
         '''Test whether execute method handles compute exception correctly.'''
